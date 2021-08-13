@@ -1,29 +1,52 @@
 import os
+import os.path
+from typing import List, Dict, Generator
 from importlib import util
 import xml.etree.ElementTree as ElementTree
 from dependency_injector import containers
 
-from shared.infrastructure.application.settings import Settings
 
-
-def _create_container():
+def create_container(services_files: List, event_handlers_file: str = None):
     service_container = containers.DynamicContainer()
-    services = _get_services()
+    services = _get_services(services_files)
     service_provider_cls = _import_cls('dependency_injector.providers.Factory')
+
+    event_handlers = {}
 
     for id, info in services.items():
         _create_service(services, service_container, service_provider_cls, id, info)
+
+    if event_handlers_file:
+        event_handlers = _get_event_handlers(event_handlers_file)
 
     class Container:
         @classmethod
         def get(cls, service_id: str):
             return getattr(service_container, service_id.replace('.', '_'))()
 
+        @classmethod
+        def event_handlers(cls, event_name: str) -> Generator:
+            subscribers = event_handlers[event_name]['subscribers']
+
+            for subscriber in subscribers:
+                yield Container.get(subscriber)
+
     return Container
 
 
-def _get_services():
-    services_file = Settings.services_file()
+def _get_services(services_files: List) -> Dict:
+    services = {}
+
+    for services_file in services_files:
+        services.update(_get_service_from_file(services_file))
+
+    return services
+
+
+def _get_service_from_file(services_file: str) -> Dict:
+    _ensure_file_exist(services_file)
+    _ensure_file_is_valid(services_file)
+
     services = {}
 
     tree = ElementTree.parse(services_file)
@@ -73,7 +96,7 @@ def _create_service(services, service_container, service_provider_cls, id: str, 
     args = {}
 
     for argument in service_args:
-        if argument.get('type') == 'config':
+        if argument.get('type') == 'env':
             args[argument['name']] = os.environ.get(argument['value'])
         elif argument.get('type') == 'parameter':
             args[argument['name']] = argument['value']
@@ -91,8 +114,10 @@ def _create_service(services, service_container, service_provider_cls, id: str, 
     return getattr(service_container, service_key)
 
 
-def _get_event_handlers():
-    event_handlers_file = Settings.event_handlers_file()
+def _get_event_handlers(event_handlers_file: str):
+    _ensure_file_exist(event_handlers_file)
+    _ensure_file_is_valid(event_handlers_file)
+
     events = {}
 
     tree = ElementTree.parse(event_handlers_file)
@@ -109,10 +134,17 @@ def _get_event_handlers():
             if event_handler.tag != 'handler':
                 continue
 
-            events[event_class_name]['subscribers'].append(_import_cls(event_handler.attrib['class']))
+            events[event_class_name]['subscribers'].append(event_handler.attrib['id'])
 
     return events
 
 
-container = _create_container()
-event_handlers = _get_event_handlers()
+def _ensure_file_exist(services_file: str):
+    if not os.path.exists(services_file):
+        raise FileNotFoundError('File {} does not exists'.format(services_file))
+
+
+def _ensure_file_is_valid(services_file: str):
+    if not services_file.endswith('.xml'):
+        raise ValueError('Services file must be an xml file')
+
