@@ -66,8 +66,8 @@ def _get_service_from_file(services_file: str) -> Dict:
         if service.tag != 'service':
             continue
 
-        if service.attrib['alias']:
-            services[service.attrib['id']] = service.attrib['alias']
+        if service.attrib.get('alias'):
+            services[service.attrib['id']] = service.attrib.get('alias')
 
             continue
 
