@@ -116,11 +116,19 @@ def _create_service(services, service_container, service_provider_cls, id: str, 
         elif argument.get('type') == 'parameter':
             args[argument['name']] = argument['value']
         elif argument.get('type') == 'service':
+            dependency_service_id = argument['value']
+
+            if isinstance(services[dependency_service_id], str):
+                dependency_service_id = services[dependency_service_id]
+
+            dependency_service_info = services[dependency_service_id]
+
             args[argument['name']] = _create_service(
-                services, service_container,
+                services,
+                service_container,
                 service_provider_cls,
-                argument['value'],
-                services[argument['value']]
+                dependency_service_id,
+                dependency_service_info
             )
 
     service_cls = _import_cls(info.get('class_name'))
