@@ -12,9 +12,19 @@ def create_container(services_files: List, event_handlers_file: str = None):
     service_provider_cls = _import_cls('dependency_injector.providers.Factory')
 
     event_handlers = {}
+    created_services = []
 
     for id, info in services.items():
+        if isinstance(info, str):
+            id = info
+            info = services[id]
+
+        if id in created_services:
+            continue
+
         _create_service(services, service_container, service_provider_cls, id, info)
+
+        created_services.append(id)
 
     if event_handlers_file:
         event_handlers = _get_event_handlers(event_handlers_file)
@@ -54,6 +64,11 @@ def _get_service_from_file(services_file: str) -> Dict:
 
     for service in root:
         if service.tag != 'service':
+            continue
+
+        if service.attrib['alias']:
+            services[service.attrib['id']] = service.attrib['alias']
+
             continue
 
         service_data = {'class_name': service.attrib['class'], 'arguments': []}
