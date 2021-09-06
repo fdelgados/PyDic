@@ -36,7 +36,7 @@ def create_container(services_files: List, event_handlers_file: str = None):
 
         @classmethod
         def event_handlers(cls, event_name: str) -> Generator:
-            subscribers = event_handlers[event_name]['subscribers']
+            subscribers = event_handlers.get(event_name, {}).get('subscribers', {})
 
             for subscriber in subscribers:
                 yield Container.get(subscriber)
