@@ -1,12 +1,12 @@
 import os
 import os.path
-from typing import List, Dict, Generator
+from typing import List, Dict, Generator, Optional, Union
 from importlib import util
 import xml.etree.ElementTree as ElementTree
 from dependency_injector import containers
 
 
-def create_container(services_files: List, event_handlers_file: str = None):
+def create_container(services_files: List, event_handlers_files: Optional[Union[str, List[str]]] = None):
     service_container = containers.DynamicContainer()
     services = _get_services(services_files)
     service_provider_cls = _import_cls('dependency_injector.providers.Factory')
@@ -26,8 +26,12 @@ def create_container(services_files: List, event_handlers_file: str = None):
 
         created_services.append(id)
 
-    if event_handlers_file:
-        event_handlers = _get_event_handlers(event_handlers_file)
+    if event_handlers_files is not None:
+        if isinstance(event_handlers_files, str):
+            event_handlers_files = [event_handlers_files]
+
+        for event_handlers_file in event_handlers_files:
+            event_handlers.update(_get_event_handlers(event_handlers_file))
 
     class Container:
         @classmethod
