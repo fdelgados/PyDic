@@ -12,19 +12,22 @@ def create_container(services_files: List, event_handlers_files: Optional[Union[
     service_provider_cls = _import_cls('dependency_injector.providers.Factory')
 
     event_handlers = {}
-    created_services = []
-
-    for id, info in services.items():
-        if isinstance(info, str):
-            id = info
-            info = services[id]
-
-        if id in created_services:
+    actual_services_ids = []
+    for service_id, info in services.items():
+        if not info.get('alias'):
             continue
 
-        _create_service(services, service_container, service_provider_cls, id, info)
+        try:
+            services[service_id] = services[info.get('alias')]
+            actual_services_ids.append(info.get('alias'))
+        except KeyError:
+            continue
 
-        created_services.append(id)
+    for actual_services_id in actual_services_ids:
+        del services[actual_services_id]
+
+    for service_id, info in services.items():
+        _create_service(services, service_container, service_provider_cls, service_id, info)
 
     if event_handlers_files is not None:
         if isinstance(event_handlers_files, str):
@@ -35,8 +38,8 @@ def create_container(services_files: List, event_handlers_files: Optional[Union[
 
     class Container:
         @classmethod
-        def get(cls, service_id: str):
-            return getattr(service_container, service_id.replace('.', '_'))()
+        def get(cls, registered_service_id: str):
+            return getattr(service_container, registered_service_id.replace('.', '_'))()
 
         @classmethod
         def event_handlers(cls, event_name: str) -> Generator:
@@ -71,7 +74,7 @@ def _get_service_from_file(services_file: str) -> Dict:
             continue
 
         if service.attrib.get('alias'):
-            services[service.attrib['id']] = service.attrib.get('alias')
+            services[service.attrib['id']] = {'alias': service.attrib.get('alias')}
 
             continue
 
@@ -174,4 +177,3 @@ def _ensure_file_exist(services_file: str):
 def _ensure_file_is_valid(services_file: str):
     if not services_file.endswith('.xml'):
         raise ValueError('Services file must be an xml file')
-
